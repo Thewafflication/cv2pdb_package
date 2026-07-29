@@ -3,6 +3,7 @@ name: Build cv2pdb WPM package
 on:
   push:
     branches: ['**']
+    tags: ['cv2pdb-*']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -19,7 +20,7 @@ permissions:
 
 jobs:
   build:
-    name: ${{ (github.event_name == 'schedule' || inputs.publish) && 'release' || 'debug' }}
+    name: ${{ (startsWith(github.ref, 'refs/tags/cv2pdb-') || github.event_name == 'schedule' || inputs.publish) && 'release' || 'debug' }}
     runs-on: windows-2022
     env:
       WPM_PRIVATE_KEY: ${{ secrets.WPM_RELEASE_PRIVATE_KEY }}
@@ -36,7 +37,7 @@ jobs:
           if (-not (Test-Path (Join-Path $wpmDirectory 'wpm.exe') -PathType Leaf)) { throw 'WPM installation failed.' }
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $wpmDirectory
       - name: Prepare release signing key
-        if: github.event_name == 'schedule' || inputs.publish
+        if: startsWith(github.ref, 'refs/tags/cv2pdb-') || github.event_name == 'schedule' || inputs.publish
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WPM_PRIVATE_KEY)) { throw 'The repository must define WPM_RELEASE_PRIVATE_KEY.' }
@@ -47,13 +48,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          $release = '${{ github.event_name }}' -eq 'schedule' -or '${{ inputs.publish }}' -eq 'true'
+          $release = '${{ startsWith(github.ref, 'refs/tags/cv2pdb-') }}' -eq 'true' -or '${{ github.event_name }}' -eq 'schedule' -or '${{ inputs.publish }}' -eq 'true'
           $parameters = @{ DebugPackage = -not $release }
           if ($release) { $parameters.SigningKey = Join-Path $env:RUNNER_TEMP 'cv2pdb-release.private' }
           $result = .\scripts\Build-Cv2PdbPackage.ps1 @parameters
           "version=$($result.Version)" >> $env:GITHUB_OUTPUT
       - name: Verify signed package
-        if: github.event_name == 'schedule' || inputs.publish
+        if: startsWith(github.ref, 'refs/tags/cv2pdb-') || github.event_name == 'schedule' || inputs.publish
         shell: pwsh
         run: |
           wpm trust add release_keys/wpm-release.public
@@ -74,7 +75,7 @@ jobs:
           compression-level: 0
 
   publish:
-    if: github.event_name == 'schedule' || inputs.publish
+    if: startsWith(github.ref, 'refs/tags/cv2pdb-') || github.event_name == 'schedule' || inputs.publish
     needs: build
     runs-on: windows-2022
     permissions:
