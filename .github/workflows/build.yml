@@ -1,0 +1,116 @@
+name: Build cv2pdb WPM package
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish/update the GitHub release for the latest cv2pdb version
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: '31 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ (github.event_name == 'schedule' || inputs.publish) && 'release' || 'debug' }}
+    runs-on: windows-2022
+    env:
+      WPM_PRIVATE_KEY: ${{ secrets.WPM_RELEASE_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install WPM
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'install-wpm.cmd'
+          Invoke-WebRequest -UseBasicParsing 'https://github.com/Thewafflication/wpm/releases/latest/download/install.cmd' -OutFile $installer
+          & $installer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $wpmDirectory = Join-Path $env:ProgramFiles 'WPM'
+          if (-not (Test-Path (Join-Path $wpmDirectory 'wpm.exe') -PathType Leaf)) { throw 'WPM installation failed.' }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $wpmDirectory
+      - name: Prepare release signing key
+        if: github.event_name == 'schedule' || inputs.publish
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WPM_PRIVATE_KEY)) { throw 'The repository must define WPM_RELEASE_PRIVATE_KEY.' }
+          [IO.File]::WriteAllText((Join-Path $env:RUNNER_TEMP 'cv2pdb-release.private'), $env:WPM_PRIVATE_KEY)
+      - name: Build package
+        id: package
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $release = '${{ github.event_name }}' -eq 'schedule' -or '${{ inputs.publish }}' -eq 'true'
+          $parameters = @{ DebugPackage = -not $release }
+          if ($release) { $parameters.SigningKey = Join-Path $env:RUNNER_TEMP 'cv2pdb-release.private' }
+          $result = .\scripts\Build-Cv2PdbPackage.ps1 @parameters
+          "version=$($result.Version)" >> $env:GITHUB_OUTPUT
+      - name: Verify signed package
+        if: github.event_name == 'schedule' || inputs.publish
+        shell: pwsh
+        run: |
+          wpm trust add release_keys/wpm-release.public
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $package = @(Get-ChildItem out/packages/cv2pdb-any-*.zip -File)
+          if ($package.Count -ne 1) { throw "Expected one package; found $($package.Count)." }
+          wpm verify $package[0].FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Remove private key
+        if: always()
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP 'cv2pdb-release.private') -Force -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cv2pdb-${{ steps.package.outputs.version }}
+          path: out/packages/*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    if: github.event_name == 'schedule' || inputs.publish
+    needs: build
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cv2pdb-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create repository metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $assets = (Resolve-Path release-assets).Path
+          Copy-Item release_keys/wpm-release.public (Join-Path $assets 'wpm-release.public')
+          $files = @(Get-ChildItem $assets -Filter 'cv2pdb-any-*.zip' -File)
+          if ($files.Count -ne 1 -or $files[0].Name -notmatch '^cv2pdb-any-(.+)\.zip$') { throw 'Expected exactly one release package.' }
+          $version = $Matches[1]
+          $tag = "cv2pdb-$version"
+          $package = [ordered]@{ name = 'cv2pdb'; version = $version; arch = 'any'; url = "https://github.com/${{ github.repository }}/releases/download/$tag/$($files[0].Name)" }
+          [ordered]@{ version = 1; packages = @($package) } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $assets 'index.json') -Encoding utf8NoBOM
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Create or update GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.metadata.outputs.tag }}'
+          gh release view $tag --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title $tag --notes "Signed WPM package for upstream cv2pdb ${{ steps.metadata.outputs.version }}."
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $files = @(Get-ChildItem release-assets -File)
+          gh release upload $tag --repo '${{ github.repository }}' --clobber @($files.FullName)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
