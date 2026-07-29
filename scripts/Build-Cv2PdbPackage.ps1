@@ -20,12 +20,13 @@ function Invoke-Checked {
 $headers = @{ Accept = 'application/vnd.github+json'; 'User-Agent' = 'cv2pdb-wpm-builder' }
 if ($env:GITHUB_TOKEN) { $headers.Authorization = "Bearer $env:GITHUB_TOKEN" }
 $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$ReleaseRepository/releases/latest"
-$version = ([string]$release.tag_name).TrimStart('v')
-if ($version -notmatch '^[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[-+][0-9A-Za-z.-]+)?$') {
+$sourceVersion = ([string]$release.tag_name).TrimStart('v')
+if ($sourceVersion -notmatch '^[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[-+][0-9A-Za-z.-]+)?$') {
     throw "The upstream tag '$($release.tag_name)' is not a supported package version."
 }
+$version = if ($sourceVersion -match '^[0-9]+\.[0-9]+$') { "$sourceVersion.0" } else { $sourceVersion }
 
-$expectedName = "cv2pdb-$version.zip"
+$expectedName = "cv2pdb-$sourceVersion.zip"
 $assets = @($release.assets | Where-Object { $_.name -eq $expectedName })
 if ($assets.Count -ne 1) { throw "Expected one upstream asset named '$expectedName'; found $($assets.Count)." }
 $asset = $assets[0]
@@ -65,7 +66,7 @@ $metadata = @(
     'homepage=https://github.com/rainers/cv2pdb'
     "repository=https://github.com/$ReleaseRepository"
     'license=Artistic-2.0'
-    "source-version=$version"
+    "source-version=$sourceVersion"
     "source-url=$($asset.browser_download_url)"
 ) -join "`n"
 [IO.File]::WriteAllText((Join-Path $metadataDirectory 'package.txt'), $metadata + "`n", [Text.UTF8Encoding]::new($false))
@@ -113,5 +114,4 @@ Invoke-Checked -Description 'WPM package build' -Command { & $WpmExecutable @arg
 $debugPart = if ($DebugPackage) { '-debug' } else { '' }
 $packagePath = Join-Path $resolvedOutput "cv2pdb-any$debugPart-$version.zip"
 if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) { throw "WPM did not produce $packagePath." }
-[pscustomobject]@{ Version = $version; Architecture = 'any'; Package = $packagePath; Source = $asset.browser_download_url }
-
+[pscustomobject]@{ Version = $version; SourceVersion = $sourceVersion; Architecture = 'any'; Package = $packagePath; Source = $asset.browser_download_url }

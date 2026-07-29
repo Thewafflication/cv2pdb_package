@@ -24,7 +24,7 @@ jobs:
     env:
       WPM_PRIVATE_KEY: ${{ secrets.WPM_RELEASE_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install WPM
         shell: pwsh
         run: |
@@ -66,7 +66,7 @@ jobs:
         if: always()
         shell: pwsh
         run: Remove-Item (Join-Path $env:RUNNER_TEMP 'cv2pdb-release.private') -Force -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cv2pdb-${{ steps.package.outputs.version }}
           path: out/packages/*.zip
@@ -80,8 +80,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: cv2pdb-*
           path: release-assets

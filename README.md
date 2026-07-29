@@ -9,6 +9,10 @@ The upstream archive contains both `cv2pdb.exe` (x86) and `cv2pdb64.exe`
 unmodified release beneath `%ProgramFiles%\cv2pdb\<version>`. The installer
 adds that directory to the system `PATH` and sets `CV2PDB_HOME`.
 
+Upstream versions with only two numeric components are normalized to SemVer by
+appending `.0`; for example, upstream `0.54` is packaged as `0.54.0` while the
+original value remains recorded as `source-version` metadata.
+
 ## Install with WPM
 
 From an elevated PowerShell session:
@@ -47,4 +51,3 @@ does the same immediately. Publishing is idempotent for an upstream version.
 
 cv2pdb is redistributed under the Artistic License 2.0. This packaging
 repository is not affiliated with the cv2pdb project.
-
