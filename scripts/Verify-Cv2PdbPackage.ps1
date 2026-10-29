@@ -36,9 +36,9 @@ try {
     }
     if (-not $meta.version) { throw "Metadata missing 'version' field."
     }
-    if (-not $meta.SourceVersion) { throw "Metadata missing 'source-version' field."
+    if (-not $meta.'source-version') { throw "Metadata missing 'source-version' field."
     }
-    if (-not $meta.SourceUrl) { throw "Metadata missing 'source-url' field."
+    if (-not $meta.'source-url') { throw "Metadata missing 'source-url' field."
     }
     Write-Host "Package verification succeeded. Version: $($meta.version) Source: $($meta.SourceVersion)"
 }
