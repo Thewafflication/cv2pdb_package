@@ -1,14 +1,14 @@
 [CmdletBinding()]
-
-if ($null -eq $PSScriptRoot) { $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 param(
-    [string] $OutputDirectory = (Join-Path $PSScriptRoot ..\out\packages),
-    [string] $WorkDirectory = (Join-Path $PSScriptRoot ..\out\work),
+    [string] $OutputDirectory = (Join-Path $PSScriptRoot '..\out\packages'),
+    [string] $WorkDirectory = (Join-Path $PSScriptRoot '..\out\work'),
     [string] $SigningKey,
     [string] $WpmExecutable = 'wpm.exe',
     [switch] $DebugPackage,
     [string] $ReleaseRepository = 'rainers/cv2pdb'
 )
+
+if ($null -eq $PSScriptRoot) { $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 3.0
