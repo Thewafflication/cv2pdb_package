@@ -37,8 +37,8 @@ $MetaContent = @(
     'homepage=https://example.com',
     'repository=https://github.com/example',
     'license=Artistic-2.0',
-    'SourceVersion=0.54',
-    'SourceUrl=https://example.com/download'
+    'source-version=0.54',
+    'source-url=https://example.com/download'
 ) -join "`n"
 $MetaPath = Join-Path $WpmDir 'package.txt'
 Set-Content -Path $MetaPath -Value $MetaContent -Encoding UTF8
