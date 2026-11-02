@@ -40,7 +40,7 @@ try {
     }
     if (-not $meta.'source-url') { throw "Metadata missing 'source-url' field."
     }
-    Write-Host "Package verification succeeded. Version: $($meta.version) Source: $($meta.SourceVersion)"
+    Write-Host "Package verification succeeded. Version: $($meta.version) Source: $($meta.'source-version')"
 }
 finally {
     # Optional clean up
